@@ -1,0 +1,187 @@
+**** Visualizza tutto il grafo ****
+
+MATCH(n) RETURN n
+
+**** Visualizza il titolo, l'anno di uscita e la tagline di tutti i film ****
+
+MATCH(m:Movie) RETURN m.title, m.released, m.tagline
+
+**** Visualizza il nome di tutti gli attori che hanno recitato nel film "The Matrix" ****
+
+MATCH(a:Person)-[:ACTED_IN]->(m:Movie {title: "The Matrix"}) RETURN a.name
+
+**** Visualizza tutti i film in cui ha recitato Keanu Reeves ****
+
+MATCH(a:Person {name:'Keanu Reeves'})-[:ACTED_IN]->(m:Movie) RETURN m.title
+
+**** Visualizza il titolo di tutti i film in cui Keanu Reeves e Carrie-Anno Moss hanno recitato insieme (2 soluzioni) ****
+
+MATCH(a:Person {name:'Keanu Reeves'})-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(p:Person {name:'Carrie-Anne Moss'}) RETURN m.title
+
+MATCH(a:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(p:Person) WHERE a.name='Keanu Reeves' AND p.name='Carrie-Anne Moss' RETURN m.title
+
+**** Visualizza il titolo di tutti i film e il nome degli attori che hanno recitato insieme a Keanu Reeves (escludendo quest'ultimo) ****
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(coActor:Person) WHERE p.name="Keanu Reeves" and coActor <> p RETURN coActor.name,m.title
+
+**** Visualizza tutti i film e gli attori a "4 hop" di distanza da Kevin Bacon ****
+
+MATCH (bacon:Person {name:"Kevin Bacon"})-[*1..4]-(hollywood) RETURN DISTINCT hollywood
+
+**** Visualizza tutti i film e gli attori a "4 hop" di distanza da Kevin Bacon ****
+
+MATCH (bacon:Person {name:"Kevin Bacon"})-[*1..4]-(hollywood) RETURN DISTINCT hollywood
+
+**** Trovare il percorso più breve da Kevin Bacon a Meg Ryan ****
+
+MATCH p=shortestPath((bacon:Person {name:"Kevin Bacon"})-[*]-(meg:Person {name:"Meg Ryan"}))
+RETURN p
+
+**** Trovare gli attori che non hanno mai lavorato con Tom Hanks, ma che hanno dei co-attori in comune ****
+
+MATCH (tom:Person {name:"Tom Hanks"})-[:ACTED_IN]->(m)<-[:ACTED_IN]-(coActors),
+  (coActors)-[:ACTED_IN]->(m2)<-[:ACTED_IN]-(cocoActors)
+WHERE NOT (tom)-[:ACTED_IN]->()<-[:ACTED_IN]-(cocoActors) AND tom <> cocoActors
+RETURN cocoActors.name AS Recommended, count(*) AS Strength ORDER BY Strength DESC
+
+**** Trovare qualcuno per presentare Tom Hanks a Tom Cruise ****
+
+MATCH (tom:Person {name:"Tom Hanks"})-[:ACTED_IN]->(m)<-[:ACTED_IN]-(coActors),
+  (coActors)-[:ACTED_IN]->(m2)<-[:ACTED_IN]-(cruise:Person {name:"Tom Cruise"})
+RETURN tom, m, coActors, m2, cruise
+
+**** Trovare i registi che hanno diretto più di 2 film ****
+
+MATCH (director:Person)-[:DIRECTED]->(movie:Movie)
+WITH director, count(movie) AS num_movies
+WHERE num_movies > 2
+RETURN director.name AS Director, num_movies
+ORDER BY num_movies DESC
+
+**** Trovare gli attori che hanno recitato insieme in 3 o più film ****
+
+MATCH (a1:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(a2:Person)
+WHERE a1 <> a2
+WITH a1, a2, count(m) AS shared_movies
+WHERE shared_movies >= 3
+RETURN a1.name AS Actor1, a2.name AS Actor2, shared_movies
+ORDER BY shared_movies DESC
+
+**** Visualizzare il ruolo di ciascuna persona coinvolta in un film specifico, indicando nel caso di attori il personaggio interpretato ****
+
+MATCH (p:Person)-[r]->(m:Movie)
+WHERE m.title = "The Matrix"
+RETURN p.name AS Person, type(r) AS Role, r.roles AS SpecificRole
+ORDER BY Role;
+
+**** Visualizzare gli attori che hanno interpretato insieme almeno 2 film, indicando per ciascuna coppia il numero di film totali in cui hanno recitato congiuntamente e l’elenco dei titoli (con duplicati) ****
+
+MATCH (a1:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(a2:Person)
+WHERE a1 <> a2
+WITH a1, a2, collect(m.title) AS shared_movies
+WHERE size(shared_movies) >= 2
+RETURN 
+  a1.name AS Actor1, 
+  a2.name AS Actor2, 
+  size(shared_movies) AS TotalMovies, 
+  shared_movies AS MovieTitles
+ORDER BY TotalMovies DESC
+
+**** Visualizzare gli attori che hanno interpretato insieme almeno 2 film, indicando per ciascuna coppia il numero di film totali in cui hanno recitato congiuntamente e l’elenco dei titoli (senza duplicati, con funzione deprecata) ****
+
+MATCH (a1:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(a2:Person)
+WHERE id(a1) < id(a2)
+WITH a1, a2, collect(m.title) AS shared_movies
+WHERE size(shared_movies) >= 2
+RETURN 
+  a1.name AS Actor1, 
+  a2.name AS Actor2, 
+  size(shared_movies) AS TotalMovies, 
+  shared_movies AS MovieTitles
+ORDER BY TotalMovies DESC
+
+**** Visualizzare gli attori che hanno interpretato insieme almeno 2 film, indicando per ciascuna coppia il numero di film totali in cui hanno recitato congiuntamente e l’elenco dei titoli (senza duplicati, evitando funzione deprecata) ****
+
+MATCH (a1:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(a2:Person)
+WHERE a1 <> a2
+WITH 
+  CASE WHEN a1.name < a2.name THEN [a1, a2] ELSE [a2, a1] END AS actors,
+  collect(DISTINCT m.title) AS shared_movies
+WHERE size(shared_movies) >= 2
+WITH actors[0] AS Actor1, actors[1] AS Actor2, shared_movies
+RETURN 
+  Actor1.name AS Actor1, 
+  Actor2.name AS Actor2, 
+  size(shared_movies) AS TotalMovies, 
+  shared_movies AS MovieTitles
+ORDER BY TotalMovies DESC
+
+**** Estrazione dello schema di un grafo *****
+
+CALL db.schema.visualization()
+
+**** Creazione del database per testare il sistema di raccomandazione ****
+
+CREATE (m1:Movie {title: "Toy Story", genres: "Animation"})
+CREATE (m2:Movie {title: "Finding Nemo", genres: "Animation"})
+CREATE (m3:Movie {title: "Shrek", genres: "Animation"})
+CREATE (m4:Movie {title: "The Lion King", genres: "Animation"})
+CREATE (p1:Person {username: "maxdemarzi", gender: "female", age: 28})
+CREATE (p2:Person {username: "janedoe", gender: "female", age: 30})
+CREATE (p3:Person {username: "jamesdean", gender: "female", age: 25})
+CREATE (p4:Person {username: "anotheruser", gender: "male", age: 40})
+CREATE
+    (p1)-[:RATED {rating: 9}]->(m1),
+    (p1)-[:RATED {rating: 8}]->(m2),
+    (p2)-[:RATED {rating: 10}]->(m1),
+    (p2)-[:RATED {rating: 9}]->(m3),
+    (p3)-[:RATED {rating: 8}]->(m1),
+    (p3)-[:RATED {rating: 9}]->(m4),
+    (p4)-[:RATED {rating: 5}]->(m1)
+CREATE
+    (p1)-[:WATCHED]->(m1),
+    (p2)-[:WATCHED]->(m3),
+    (p3)-[:WATCHED]->(m4)
+
+**** Suggerire I top-25 film non ancora visti, dello stesso genere di Toy Story, con valutazioni alte assegnate da donne under 35 che hanno apprezzato Toy Story ****
+
+MATCH (watched:Movie {title: "Toy Story"}) <-[r1:RATED]- (p2) -[r2:RATED]-> (unseen:Movie)
+WHERE r1.rating > 7 
+  AND r2.rating > 7 
+  AND p2.gender = "female" 
+  AND p2.age < 35 
+  AND watched.genres = unseen.genres
+OPTIONAL MATCH (p:Person)
+WHERE NOT((p)-[:RATED|WATCHED]->(unseen))
+  AND p.username IN ["maxdemarzi", "janedoe", "jamesdean"]
+RETURN unseen.title, COUNT(*)
+ORDER BY COUNT(*) DESC
+LIMIT 25;
+
+**** Estrazione delle valutazioni degli utenti per uno stesso film ****
+
+MATCH  (p1:Person {username:"maxdemarzi"}) -[r1:RATED]-> (m:Movie), (p2:Person {username: "janedoe"}) -[r2:RATED]-> (m:Movie)
+RETURN m.title AS Movie, r1.rating AS Max, r2.rating AS Jane
+
+**** Calcolo della similarità ****
+
+MATCH (p1:Person) -[x:RATED]-> (m:Movie) <-[y:RATED]- (p2:Person)
+WITH  SUM(x.rating * y.rating) AS xyDotProduct,
+      SQRT(REDUCE(xDot = 0.0, a IN COLLECT(x.rating) | xDot + a^2)) AS xLength,
+      SQRT(REDUCE(yDot = 0.0, b IN COLLECT(y.rating) | yDot + b^2)) AS yLength,
+      p1, p2
+MERGE (p1)-[s:SIMILARITY]-(p2)
+SET   s.similarity = xyDotProduct / (xLength * yLength)
+
+**** Uso della similarità tra utenti per implementare un sistema di raccomandazione ****
+
+MATCH (m:Movie) <-[r:RATED]- (b:Person) -[s:SIMILARITY]- (p:Person {username:'Zoltan Varju'})
+WHERE NOT((p)-[:RATED|WATCHED]->(m))
+WITH m, s.similarity AS similarity, r.rating AS rating
+ORDER BY m.title, similarity DESC
+WITH m.title AS movie, COLLECT(rating)[0..3] AS ratings
+WHERE SIZE(ratings) > 0
+WITH movie, REDUCE(s = 0, i IN ratings | s + i) * 1.0 / SIZE(ratings) AS recommendation
+ORDER BY recommendation DESC
+RETURN movie, recommendation
+LIMIT 25
